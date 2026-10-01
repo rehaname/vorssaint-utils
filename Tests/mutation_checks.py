@@ -267,8 +267,8 @@ MUTATIONS = [
      "a log written again in place while the app runs is read again at once"),
     ("agent progress keeps a log that started over", "agents",
      "Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift",
-     "cursors: cursors.values.filter { !$0.restarted }.map(\\.saved))",
-     "cursors: cursors.values.map(\\.saved))",
+     "let kept = cursors.values.filter { !$0.restarted && $0.provider != .opencode }",
+     "let kept = cursors.values.filter { $0.provider != .opencode }",
      "a log replaced or written again while the app ran is left out of saved progress"),
 ]
 

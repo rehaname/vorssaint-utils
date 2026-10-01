@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-On macOS 27 the Volume mixer can send a single app to an AirPlay speaker, clipboard searches highlight what they matched, and screenshots gain a Full screen button, an optional confirmation preview and a shortcut that uploads the latest capture as a temporary link. Dynamic Island shows song covers in Up next, keeps the playing song while a web player loads the next one, and its AI Agents page picks up where the last launch stopped instead of reading every log again. Volume and mute keys follow what the output really does after the Mac wakes, and brightness and volume keys pressed with Option, Command or Control reach macOS again.
+On macOS 27 the Volume mixer can send a single app to an AirPlay speaker, clipboard searches highlight what they matched, and screenshots gain a Full screen button, an optional confirmation preview and a shortcut that uploads the latest capture as a temporary link. Dynamic Island shows song covers in Up next and keeps the playing song while a web player loads the next one, and its AI Agents page adds OpenCode and picks up where the last launch stopped instead of reading every log again. Volume and mute keys follow what the output really does after the Mac wakes, and brightness and volume keys pressed with Option, Command or Control reach macOS again.
 
 ### Dynamic Island
 - The camera mirror fills the island's page instead of showing a small preview in the middle, and Stop camera sits over the image beside the camera picker.
@@ -20,6 +20,8 @@ On macOS 27 the Volume mixer can send a single app to an AirPlay speaker, clipbo
 - The Downloads page without a folder explains what it does and offers a Choose Folder… button, or a Downloads switch while Downloads is off, instead of a bare checkbox.
 - Up next shows each song's cover when the player shares one, and the list no longer blanks out for a moment on next or previous.
 - On the Clipboard page, Return or Enter pastes the first entry before any arrow is pressed, as the history window does. Without Accessibility it copies the entry.
+- The AI Agents page follows OpenCode too, next to Claude Code and Codex. Its tokens, costs, models and working tasks come from OpenCode's own database on this Mac, which is read again at each launch. Settings → Dynamic Island → Content → AI Agents → OpenCode.
+- The closed island can show the limit you pick instead of the one closest to running out. Choose Session, Week or Most used, which stays the default. The resting wings, the capsule and the Lock Screen follow the same choice. Settings → Dynamic Island → Content → AI Agents → Limit to show.
 - The AI Agents page picks up where the last launch stopped and reads only what Claude Code and Codex wrote since, instead of every log of the last 13 weeks. What it keeps for that is in the app's cache folder and is deleted when the section is turned off.
 
 ### Added
@@ -33,7 +35,13 @@ On macOS 27 the Volume mixer can send a single app to an AirPlay speaker, clipbo
 
 ### Fixed
 - Dynamic Island keeps the current song on screen while a web player loads the next one, instead of briefly showing another player's paused song. With the New track indicator on, a new song appears in the indicator before the compact island, even when it takes a while to load.
+- With Automatically include videos and other apps on, Dynamic Island switches to a browser that starts playing even while macOS still points to a paused music app.
+- Lyrics are also found for songs whose player reports no album.
 - A Dynamic Island opened by hover now closes when the pointer leaves quickly past one of its floating buttons, such as the music button below it, instead of staying open until the pointer comes back.
+- The closed Dynamic Island no longer stays enlarged after the pointer passes over it quickly, such as on the way to a display above it.
+- When Dynamic Island opens on a click, a click at the top edge of the screen while the island grows under the pointer now opens it instead of doing nothing.
+- With Keyboard navigation on in System Settings, clicking Dynamic Island no longer leaves a focus ring around the camera.
+- The AI Agents page shows the 5-hour session renewing five hours after its first request, as the provider's usage page does, instead of up to an hour later.
 - On a Mac with a notch, the outline from Show outline no longer hides behind the camera while Dynamic Island is closed. The closed island reaches slightly past the notch to show it.
 - Dynamic Island's Combine menu names each pair in the order the island shows it, left to right, such as Music + Timer.
 - On a Mac with a notch, a Dynamic Island page title too long for the space beside the camera, such as Camera mirror on some displays, now moves to a row below the camera instead of being cut off. Titles that fit stay beside the camera.
@@ -45,7 +53,7 @@ On macOS 27 the Volume mixer can send a single app to an AirPlay speaker, clipbo
 - The Uninstaller's app pickers and the Command Bar's Uninstall Application list offer only apps it can remove, so Apple's App Store apps, iPhone and iPad apps and linked apps no longer lead back to an empty drop zone. A refused app or a link dragged from a browser springs back from the drop zone instead.
 
 ### Contributors
-Thanks to @69grcv8vfm-sys, @AlirezaBs, @benjaminbrtrd, @dreammissnot, @emreertunc, @EugeneCarldotme, @Ffinnis, @gorillasuti, @iltonandrew, @itsalexcoman, @mikeknight85, @niukanen1, @Qarru, @ruvelro, @sagnikonly and @samanyudas. Feedback: Barbel Design, Emanuele Frasca, Pinea and the/master.
+Thanks to @69grcv8vfm-sys, @AlirezaBs, @bebricoOOOOOOf, @benjaminbelloeil, @benjaminbrtrd, @dc0dr, @dreammissnot, @emreertunc, @EugeneCarldotme, @Ffinnis, @frieddeli, @Frozen0wl, @gorillasuti, @ilim-cell, @iltonandrew, @itsalexcoman, @mikeknight85, @niukanen1, @Qarru, @Retr0MrWave, @ruvelro, @sagnikonly, @samanyudas, @sarat03, @thitiwats and @yuzu-octopus. Feedback: Barbel Design, Emanuele Frasca, Pinea and the/master.
 
 ## [3.4.1-beta.1] - 2026-09-29
 

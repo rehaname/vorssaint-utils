@@ -25,6 +25,8 @@ final class AgentUsageStore {
     private(set) var waiting: [String: AgentLiveSession] = [:]
     /// Claude turns whose process was seen running, by log file.
     private var registered: Set<String> = []
+    /// Turns whose last step ended expecting more, by log file, with when.
+    private var settled: [String: Date] = [:]
     /// Off while the logs are first read, so history never replays as news.
     var reportsTransitions = false
     /// A turn that ended longer ago than this is history found late, like a
@@ -67,6 +69,7 @@ final class AgentUsageStore {
                 codexPlanObserved = date
             case .turnBegan(let date):
                 guard tracksTurns else { continue }
+                settled[file] = nil
                 // A log rewritten in place is read again from its start; the
                 // turn it already holds keeps what its responses added, which
                 // the second reading skips as repeats.
@@ -77,6 +80,7 @@ final class AgentUsageStore {
                                                model: "", project: "", tokens: AgentTokens(), cost: 0)
             case .turnActive(let date):
                 guard tracksTurns else { continue }
+                settled[file] = nil
                 let moment = date ?? modified
                 if var turn = turns[file] ?? waiting.removeValue(forKey: file) {
                     turn.lastActivity = max(turn.lastActivity, moment)
@@ -85,8 +89,14 @@ final class AgentUsageStore {
                     turns[file] = AgentLiveSession(id: file, provider: provider, started: moment, lastActivity: moment,
                                                    model: "", project: "", tokens: AgentTokens(), cost: 0)
                 }
+            case .turnSettled(let date):
+                guard tracksTurns, var turn = turns[file] ?? waiting.removeValue(forKey: file) else { continue }
+                turn.lastActivity = max(turn.lastActivity, date)
+                turns[file] = turn
+                settled[file] = date
             case .turnEnded(let date, let completed, let duration):
                 guard tracksTurns else { continue }
+                settled[file] = nil
                 // A turn that went quiet on the way ends as the whole turn.
                 let quiet = waiting.removeValue(forKey: file)
                 guard let turn = turns.removeValue(forKey: file) ?? quiet, completed, reportsTransitions else { continue }
@@ -95,6 +105,9 @@ final class AgentUsageStore {
                 events.append(.finished(provider: provider,
                                         duration: max(0, duration ?? end.timeIntervalSince(turn.started)),
                                         cost: turn.cost, tokens: turn.tokens.total, project: turn.project))
+            case .reset:
+                let baseFile = file.components(separatedBy: "#").first ?? file
+                forget(file: baseFile)
             }
         }
         return events
@@ -105,7 +118,16 @@ final class AgentUsageStore {
     @discardableResult
     func forget(file: String) -> Bool {
         waiting[file] = nil
-        return turns.removeValue(forKey: file) != nil
+        settled = settled.filter { $0.key != file && !$0.key.hasPrefix(file + "#") }
+        var removed = turns.removeValue(forKey: file) != nil
+        for key in turns.keys where key.hasPrefix(file + "#") {
+            turns.removeValue(forKey: key)
+            removed = true
+        }
+        for key in waiting.keys where key.hasPrefix(file + "#") {
+            waiting.removeValue(forKey: key)
+        }
+        return removed
     }
 
     /// `source` is the log the response was read from; `file` names the log
@@ -119,7 +141,35 @@ final class AgentUsageStore {
             if !sources[position].contains(source) { sources[position].append(source) }
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
-            guard merged != old.tokens else { return }
+            if merged == old.tokens {
+                if record.provider == .opencode {
+                    let newCost: Double?
+                    let isReported: Bool
+                    if record.reportedCost {
+                        newCost = record.cost
+                        isReported = true
+                    } else if old.reportedCost {
+                        newCost = old.cost
+                        isReported = true
+                    } else {
+                        newCost = record.cost ?? old.cost
+                        isReported = false
+                    }
+                    if newCost != old.cost || isReported != old.reportedCost {
+                        summary.recordChanged(at: position, previous: old)
+                        let extra = (newCost ?? 0) - (old.cost ?? 0)
+                        records[position].cost = newCost
+                        records[position].reportedCost = isReported
+                        if let file, var turn = turns[file] ?? waiting[file],
+                           record.date >= turn.started.addingTimeInterval(-1) {
+                            waiting[file] = nil
+                            turn.cost += extra
+                            turns[file] = turn
+                        }
+                    }
+                }
+                return
+            }
             summary.recordChanged(at: position, previous: old)
             var combined = billables[position]
             combined.tokens = merged
@@ -128,16 +178,34 @@ final class AgentUsageStore {
             combined.fast = combined.fast || billable.fast
             combined.domestic = combined.domestic || billable.domestic
             let priced = AgentPricing.cost(combined, model: old.model)
+            let newCost: Double?
+            let isReported: Bool
+            if record.provider == .opencode {
+                if record.reportedCost {
+                    newCost = record.cost
+                    isReported = true
+                } else if old.reportedCost {
+                    newCost = old.cost
+                    isReported = true
+                } else {
+                    newCost = priced.cost ?? record.cost ?? old.cost
+                    isReported = false
+                }
+            } else {
+                newCost = priced.cost
+                isReported = false
+            }
             delta = AgentTokens(input: merged.input - old.tokens.input,
                                 cacheWrite: merged.cacheWrite - old.tokens.cacheWrite,
                                 cacheRead: merged.cacheRead - old.tokens.cacheRead,
                                 output: merged.output - old.tokens.output,
                                 reasoning: merged.reasoning - old.tokens.reasoning)
-            extra = (priced.cost ?? 0) - (old.cost ?? 0)
+            extra = (newCost ?? 0) - (old.cost ?? 0)
             billables[position] = combined
             records[position].tokens = merged
-            records[position].cost = priced.cost
+            records[position].cost = newCost
             records[position].savings = priced.savings
+            records[position].reportedCost = isReported
         } else {
             summary.recordChanged(at: records.count, previous: nil)
             index[key] = records.count
@@ -158,12 +226,17 @@ final class AgentUsageStore {
         turns[file] = turn
     }
 
-    /// Prices every response again, after a newer list arrives.
+    /// Prices every response again, after a newer list arrives. List-derived
+    /// rows recalculate against the new prices, while reported provider charges stay intact.
     func reprice() {
         summary.invalidate()
         for position in records.indices {
+            guard !records[position].reportedCost else { continue }
             let priced = AgentPricing.cost(billables[position], model: records[position].model)
-            records[position].cost = priced.cost
+            // A zero OpenCode recorded for a model the list still does not
+            // know stays that reply's cost.
+            let recordedZero = records[position].provider == .opencode && records[position].cost == 0
+            records[position].cost = priced.cost ?? (recordedZero ? 0 : nil)
             records[position].savings = priced.savings
         }
     }
@@ -196,6 +269,21 @@ final class AgentUsageStore {
         waiting = waiting.filter { now.timeIntervalSince($0.value.lastActivity) < Self.resumeWindow(for: $0.value.provider) }
     }
 
+    /// A turn whose last step ended expecting more, with nothing after it
+    /// for a while, stopped there, as when OpenCode's loop stops on a
+    /// rejected tool call: it ends without a notice, since nothing finished.
+    /// True when one was showing.
+    @discardableResult
+    func closeSettledTurns(now: Date) -> Bool {
+        var removed = false
+        for (file, date) in settled where now.timeIntervalSince(date) >= AgentLogParser.openCodeSettle {
+            settled[file] = nil
+            waiting[file] = nil
+            if turns.removeValue(forKey: file) != nil { removed = true }
+        }
+        return removed
+    }
+
     /// A Claude session quit or killed in the middle of a turn, as when its
     /// terminal closes, writes nothing that ends the turn. Its process
     /// record says so sooner than the quiet wait: the record names a process
@@ -223,7 +311,8 @@ final class AgentUsageStore {
     var showsClaudeTurn: Bool { turns.values.contains { $0.provider == .claude } }
 
     /// What is kept between launches: every counter the logs gave, and none
-    /// of their text.
+    /// of their text. OpenCode's database is read again at each launch, so
+    /// nothing it gave is kept.
     struct Saved: Equatable {
         struct Record: Equatable {
             let key: String
@@ -243,13 +332,14 @@ final class AgentUsageStore {
     var saved: Saved {
         var keys = [String](repeating: "", count: records.count)
         for (key, position) in index { keys[position] = key }
-        let kept = records.indices.map {
+        let kept = records.indices.filter { records[$0].provider != .opencode }.map {
             Saved.Record(key: keys[$0], record: records[$0], billable: billables[$0], sources: sources[$0])
         }
         return Saved(records: kept,
                      limits: limits.values.sorted { $0.provider.rawValue < $1.provider.rawValue },
                      codexPlan: codexPlan, codexPlanObserved: codexPlanObserved,
-                     turns: turns.values.sorted { $0.id < $1.id }, waiting: waiting.values.sorted { $0.id < $1.id })
+                     turns: turns.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id },
+                     waiting: waiting.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id })
     }
 
     convenience init(saved: Saved) {
@@ -325,7 +415,8 @@ struct AgentLogRoot: Equatable {
     /// link elsewhere, as dotfile setups do, would otherwise never match.
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
         [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
-         (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions")].map { provider, path in
+         (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
+         (.opencode, ".local/share/opencode")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -395,6 +486,8 @@ final class AgentLogCursor {
     let tracksTurns: Bool
     /// The session log a Claude subagent works for.
     let parent: String?
+    /// Replies still being written and the rows read last, for a database.
+    var openCode = AgentOpenCodeProgress()
     var offset: UInt64 = 0
     var identity: UInt64 = 0
     var pending = Data()
@@ -412,7 +505,7 @@ final class AgentLogCursor {
         let name = (path as NSString).lastPathComponent
         let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
         self.parent = parent
-        tracksTurns = provider == .claude ? parent == nil : !name.contains("_")
+        tracksTurns = provider == .claude ? parent == nil : (provider == .codex ? !name.contains("_") : true)
     }
 
     /// Where reading stopped, at a line boundary: a line still being written
@@ -506,7 +599,11 @@ enum AgentLogReader {
     /// usage record; it is skipped rather than held in memory.
     static let maximumLine = 32 << 20
 
-    static func isLog(_ path: String) -> Bool { path.hasSuffix(".jsonl") }
+    static func isLog(_ path: String) -> Bool {
+        let name = (path as NSString).lastPathComponent
+        if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
+        return path.hasSuffix(".jsonl")
+    }
 
     /// A hash of the log's first and last few kilobytes before `offset`, and
     /// of the offset itself. A log rewritten with a different start, or
@@ -544,9 +641,18 @@ enum AgentLogReader {
         var found: [(path: String, provider: AgentProvider, modified: Date, subagent: Bool)] = []
         let keys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]
         for root in roots where root.exists {
+            // OpenCode keeps its database beside the snapshots, clones and
+            // logs of its data folder, which are never walked.
+            if root.provider == .opencode {
+                let path = root.url.appending(path: AgentOpenCodeReader.database).path
+                if let modified = AgentOpenCodeReader.modified(path), modified >= horizon {
+                    found.append((path, root.provider, modified, false))
+                }
+                continue
+            }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
                                                                   options: [.skipsPackageDescendants]) else { continue }
-            for case let url as URL in enumerator where isLog(url.path) {
+            for case let url as URL in enumerator where url.path.hasSuffix(".jsonl") {
                 guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
                       let modified = values.contentModificationDate, modified >= horizon else { continue }
                 let subagent = root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil
@@ -559,9 +665,15 @@ enum AgentLogReader {
 
     /// Reads what was appended since the last call and hands over each
     /// complete line. A replaced or truncated file starts over.
-    static func readAppended(_ cursor: AgentLogCursor, shouldContinue: () -> Bool = { true },
-                             line: (Data) -> Void) {
+    /// A database has no files to leave out, so its first read starts at
+    /// `horizon` instead.
+    static func readAppended(_ cursor: AgentLogCursor, since horizon: Date = .distantPast,
+                             shouldContinue: () -> Bool = { true }, line: (Data) -> Void) {
         guard shouldContinue() else { return }
+        if cursor.provider == .opencode {
+            AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
+            return
+        }
         var info = stat()
         guard stat(cursor.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return }
         let size = UInt64(max(0, info.st_size))
