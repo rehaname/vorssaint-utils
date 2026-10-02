@@ -1,39 +1,40 @@
 ---
 name: Cursor Notch plan
-overview: 'Add a new opt-in "Cursor" module to the Vorssaint notch that mirrors what the Cursor desktop app''s agent is doing (through Cursor''s official hooks) and offers simple controls (approvals, replies, new chats, jump to window, PRs), with a premium animated look. The existing AI usage tracker and every other utility stay untouched.'
+overview: Add a new opt-in "Cursor" module to the Vorssaint notch that mirrors what the Cursor desktop app's agent is doing (through Cursor's official hooks) and offers simple controls (approvals, replies, new chats, jump to window, PRs), with a premium animated look. The existing AI usage tracker and every other utility stay untouched.
 todos:
   - id: phase0-spike
-    content: 'Phase 0: verification spike in the Cursor app; capture payload fixtures and record findings S0.1-S0.19'
-    status: pending
+    content: "Phase 0: verification spike in the Cursor app; capture payload fixtures and record findings S0.1-S0.19"
+    status: completed
   - id: phase1-skeleton
-    content: 'Phase 1: additive module skeleton, including every exhaustive AppFeature and NotchModule switch, defaults, strings, settings section, empty page'
-    status: pending
+    content: "Phase 1: additive module skeleton, including every exhaustive AppFeature and NotchModule switch, defaults, strings, settings section, empty page"
+    status: completed
   - id: phase2-bridge
-    content: 'Phase 2: hook helper executable, shared protocol, secure Unix socket server, build.sh compile/stage/sign, stable installed copy'
-    status: pending
+    content: "Phase 2: hook helper executable, shared protocol, secure Unix socket server, build.sh compile/stage/sign, stable installed copy"
+    status: completed
   - id: phase3-installer
-    content: 'Phase 3: hooks.json installer (merge, backup, preview, status, uninstall) and Connect flow'
-    status: pending
+    content: "Phase 3: hooks.json installer (merge, backup, preview, status, uninstall) and Connect flow"
+    status: completed
   - id: phase4-viewing
-    content: 'Phase 4: models, decoding, reducer, CursorNotchService, NotchService wiring, closed strip, Cursor page, notices (V1-V20)'
-    status: pending
+    content: "Phase 4: models, decoding, reducer, CursorNotchService, NotchService wiring, closed strip, Cursor page, notices (V1-V20)"
+    status: completed
   - id: phase5-controls
-    content: 'Phase 5: approvals with rules and timeout policy, queue and reply via stop hook, new chat via prompt link, jump to window, context note (C1-C7, C9, C13)'
-    status: pending
+    content: "Phase 5: approvals with rules and timeout policy, queue and reply via stop hook, new chat via prompt link, jump to window, context note (C1-C7, C9, C13)"
+    status: completed
   - id: phase6-git
-    content: 'Phase 6: CursorGitService and PR card (status, create, checks, merge) via git and gh'
-    status: pending
+    content: "Phase 6: CursorGitService and PR card (status, create, checks, merge) via git and gh"
+    status: completed
   - id: phase7-experimental
-    content: 'Phase 7: experimental Accessibility controls (send now, stop, keep/undo all) with window guard'
-    status: pending
+    content: "Phase 7: experimental Accessibility controls (send now, stop, keep/undo all) with window guard"
+    status: completed
   - id: phase8-polish
-    content: 'Phase 8: mascot, palette, fluid text, typewriter, motion, glow, sounds, haptics, onboarding, reduce motion, energy'
-    status: pending
+    content: "Phase 8: mascot, palette, fluid text, typewriter, motion, glow, sounds, haptics, onboarding, reduce motion, energy"
+    status: completed
   - id: phase9-quality
-    content: 'Phase 9: tests, localization, docs (README, PRIVACY, PERMISSIONS), manual matrix, draft PR'
-    status: pending
+    content: "Phase 9: tests, localization, docs (README, PRIVACY, PERMISSIONS), manual matrix, draft PR"
+    status: completed
 isProject: false
 ---
+
 # Cursor Notch for Vorssaint: implementation plan
 
 ## 1. Goal and scope
@@ -139,19 +140,19 @@ Never printed: `pluginPaths` (`workspaceOpen` would load those directories), `en
   - `subagentStart`, `subagentStop`, `preCompact`
   - `workspaceOpen` (feeds the repo list; stdout stays empty)
   - `sessionStart` when the context note is off. Docs describe it as fire-and-forget. When the note is on, the helper still answers immediately from the local note. It does not wait on the user. Phase 0 checks that a fast `additional_context` actually lands.
-- **Step starts, fast when approvals are off.** `beforeShellExecution`, `beforeMCPExecution`, and `preToolUse` stay registered so the strip can show running or editing before the tool finishes. With approvals off they are observation entries: exit 0, empty stdout, short `timeout`. Phase 0 confirms that empty output does not block.
+- **Step starts, fast when approvals are off.** `beforeShellExecution`, `beforeMCPExecution`, and `preToolUse` stay registered so the strip can show running or editing before the tool finishes. The helper still treats those event names as approvals, so the installer passes `--wait=1` (not the 95-second approval wait) and a Cursor `timeout` of 10. Shell and MCP also pass `--fallback=ask` while approvals are off, or while the hand-back setting is on, so a missed reply returns Cursor's own prompt instead of a deny. `preToolUse` never passes `--fallback`. Phase 0 confirms that empty output does not block.
 - **Approvals, which block** while the matching setting is on. The installer rewrites these entries when the setting changes.
   - Shell: `beforeShellExecution` only.
   - MCP: `beforeMCPExecution` only.
   - Edits: `preToolUse` with a matcher limited to edit tools. Docs list `Write` and `Delete`. Phase 0 records the real `tool_name` values and the matcher includes those too. The matcher is mandatory. It never includes `Shell` or `MCP:…`, or the same action would prompt twice.
   - Docs: `preToolUse` accepts `"ask"` but does not enforce it. Edit approvals are allow or deny only. `"ask"` on `subagentStart` is treated as deny, so that hook stays an empty observation.
-  - Approval entries set `failClosed: true` only after Phase 0 shows a crashed or timed-out hook denies the action instead of freezing Cursor. Observation entries stay fail-open.
+  - Approval entries set `failClosed: true`. On Cursor 3.23.12 a crashed hook denies the action and tells the agent; it does not freeze the window. Observation entries stay fail-open. Invalid JSON from a permission hook is also denied, so the helper must print empty stdout or valid allowlisted JSON.
   - Two clocks. Connect failure is about 300 ms for every hook. The approval wait starts only after the socket accepts. Then the app's approval timeout (the setting) is shorter than the helper's wait (setting plus 5 seconds), which is shorter than Cursor's `timeout` (setting plus 15 seconds).
 - **Follow-ups:** `stop`.
   - Returns `followup_message` when a message is queued, or when hold-for-reply has text and the queue is empty.
   - Only when `status` is `completed`, unless the aborted-turn setting is on. Never when `status` is `error`. Never when `loop_count` is already greater than 0.
   - The queue is cleared as the reply is sent, so the follow-up's own stop cannot send it again.
-  - `loop_limit` is `1`, plus the app-side guard. It is not `null`.
+  - `loop_limit` is `1`, plus the app-side guard. It is not `null`. The installer writes it on the stop entry.
   - `timeout` is the hold-for-reply time plus 10 seconds. When hold-for-reply is off, the helper does not block: it returns the queued message or empty stdout immediately.
 
 **Not registered:** `beforeReadFile` (it carries file contents, fires very often, and is a permission hook) and the Tab hooks. Reads are seen through `postToolUse` with tool `Read` or `Grep`. If a payload unexpectedly contains file contents, the trimmer drops them.
@@ -204,7 +205,7 @@ Never printed: `pluginPaths` (`workspaceOpen` would load those directories), `en
 - [ ] **V11 Model in use.** From `model_id`, falling back to `model`.
 - [ ] **V12 Duration and finish.** `stop.status` (completed, aborted, error) plus `sessionEnd.duration_ms` and `sessionEnd.reason`. Leads to the done animation and a notice.
 - [ ] **V13 Context filling up.** A small meter from `preCompact`: `context_usage_percent`, `context_tokens`, and `context_window_size`. `preCompact` cannot block compaction. Its stdout stays empty, so Cursor does not show a `user_message` from us.
-- [ ] **V14 Tokens per turn.** Shown only if Phase 0 finds them in the app's payloads. They are not in the documented `afterAgentResponse` schema. Otherwise hidden.
+- [ ] **V14 Tokens per turn.** Cursor 3.23.12's `afterAgentResponse` payload can include optional `input_tokens`, `output_tokens`, `cache_read_tokens`, and `cache_write_tokens`. Show them when present. Hide the meter when they are absent.
 - [ ] **V15 App or terminal label.** The helper walks its parent processes. An ancestor inside `Cursor.app/Contents` means app; otherwise terminal. The filter is a setting. `is_background_agent` draws a separate "Background" badge and does not change this label.
 - [ ] **V16 Several windows and chats.** Sessions are grouped by workspace, and a switcher shows chips per chat.
 - [ ] **V17 Cursor quit.** When Cursor terminates (`NSWorkspace.didTerminateApplicationNotification` for Cursor's stable or Nightly bundle id), every session ends.
@@ -240,7 +241,7 @@ Never printed: `pluginPaths` (`workspaceOpen` would load those directories), `en
     2. Wait up to 3 seconds for Cursor to come to the front.
     3. Open `cursor://anysphere.cursor-deeplink/prompt?text=<encoded>`.
     4. The user presses Enter in Cursor.
-  - The composer counts the encoded URL against the documented 8,000-character limit. The link never runs the prompt by itself. The user confirms it in Cursor.
+  - The composer rejects the link when `21 + encodeURIComponent(text).length` is over 10,000, which is what Cursor 3.23.12 checks. The link only prefills the composer. The user confirms it in Cursor.
   - If both stable Cursor and Nightly are installed, Phase 0 records which app owns `cursor://`. The bridge warns when that owner is not the app it just opened.
 - [ ] **C7 Jump to the right Cursor window.** Open the session's workspace folder in Cursor, which brings that window forward. Clicking a file in V6 opens that file in Cursor.
 - [ ] **C8 Create PR, view checks, merge PR.** Details in Phase 6.
@@ -318,49 +319,49 @@ Never printed: `pluginPaths` (`workspaceOpen` would load those directories), `en
 
 ## 6. Step-by-step phases
 
-### Phase 0: Verification spike (no product code)
+### Phase 0: Verification spike
 
 Install a throwaway logging hook script for every event in a test `~/.cursor/hooks.json` (backed up first). Record the answers below; each finding goes into section 9.
 
-- [ ] **S0.1** Capture real payloads for every registered event in the Cursor app. Save scrubbed copies as test fixtures in `Tests/Fixtures/cursor-hooks/*.json`.
-- [ ] **S0.2** For each permission-capable hook (`beforeSubmitPrompt`, `preToolUse`, `beforeShellExecution`, `beforeMCPExecution`, `subagentStart`), confirm the no-op is exit 0 with empty stdout or `{}`. Record what exit `1` and exit `2` actually do. `beforeSubmitPrompt` must keep submitting (`continue` stays true). `subagentStart` must not return `"ask"`.
-- [ ] **S0.3** Does `{"permission":"allow"}` from `beforeShellExecution` skip Cursor's own approval prompt? Does `"ask"` show Cursor's prompt in the app? Does `deny` plus `agent_message` reach the agent?
-- [ ] **S0.4** A hook waiting 60 to 120 seconds: what does Cursor's interface show, is the configured `timeout` honoured, and is there a maximum?
-- [ ] **S0.5** `stop` with a 60-second wait, then `followup_message`: is it delivered into the same chat, what does the interface show while waiting, and what does `loop_limit` do?
-- [ ] **S0.6** Open a folder in Cursor, then the prompt link: which window receives the text, does it work when Cursor was closed, and does the encoded URL fail at 8,000 characters?
-- [ ] **S0.7** Shortcuts in the current Cursor version for focusing the chat, stopping, Keep All and Undo All.
-- [ ] **S0.8** Telling app from terminal: parent-process chain and `TERM_PROGRAM`. Record `composer_mode` strings separately (`agent`, `ask`, `edit`, and any `plan`). Record `is_background_agent` as its own flag, not as the terminal signal.
-- [ ] **S0.9** Hook overhead: time from hook start to exit for the helper, for both observation and approval hooks.
-- [ ] **S0.10** Opening an already-open folder focuses its existing window. Opening a file in Cursor works.
-- [ ] **S0.11** Commands with spaces in the path (`Application Support`): how Cursor runs `command`, and which quoting works.
-- [ ] **S0.12** Cursor's bundle ids (stable and Nightly), the URL schemes each registers, and which app owns `cursor://` when both are installed.
-- [ ] **S0.13** `workspaceOpen` with empty stdout: Cursor does not log an error and does not load extra plugins. Confirm a returned `pluginPaths` would be acted on, so v1 must never send one.
-- [ ] **S0.14** `failClosed: true` on `beforeShellExecution`: a crashed or timed-out helper denies the command instead of freezing the agent. If it wedges the UI, leave `failClosed` off and record that.
-- [ ] **S0.15** Real `tool_name` values for edits (`Write`, `Delete`, and anything else the agent uses). The `preToolUse` matcher is built from this list.
-- [ ] **S0.16** A fast `sessionStart` reply of `{"additional_context":"..."}` lands in the new chat. A slow reply does not, which matches the fire-and-forget docs.
-- [ ] **S0.17** Cursor window-title format for the experimental window guard (project name, folder, or neither).
-- [ ] **S0.18** Shell output shape: `afterShellExecution.output` is the terminal tail, and `postToolUse.tool_output` is JSON. `duration` versus `duration_ms` matches section 5.
-- [ ] **S0.19** Subagent payloads: is `conversation_id` the parent or a new id, and is `parent_conversation_id` always set?
-- [ ] **Exit:** the findings are filled in, with go or no-go for C2, C10, C11, C12, C13, V14, and `failClosed`.
+- [x] **S0.1** Capture real payloads in the Cursor app. The live fixture is `Tests/Fixtures/cursor-hooks/beforeShellExecution.json`. Other event shapes are from Cursor 3.23.12's hook protobuf, recorded in section 9.
+- [x] **S0.2** For each permission-capable hook (`beforeSubmitPrompt`, `preToolUse`, `beforeShellExecution`, `beforeMCPExecution`, `subagentStart`), confirm the no-op is exit 0 with empty stdout or `{}`. Record what exit `1` and exit `2` actually do. `beforeSubmitPrompt` must keep submitting (`continue` stays true). `subagentStart` must not return `"ask"`.
+- [x] **S0.3** Does `{"permission":"allow"}` from `beforeShellExecution` skip Cursor's own approval prompt? Does `"ask"` show Cursor's prompt in the app? Does `deny` plus `agent_message` reach the agent?
+- [x] **S0.4** A hook waiting 60 to 120 seconds: what does Cursor's interface show, is the configured `timeout` honoured, and is there a maximum?
+- [x] **S0.5** `stop` with a 60-second wait, then `followup_message`: is it delivered into the same chat, what does the interface show while waiting, and what does `loop_limit` do?
+- [x] **S0.6** Prompt link: a missing workspace name continues in the current window, and the link is rejected when `21 + encodeURIComponent(text).length` is over 10,000. It only prefills the composer.
+- [x] **S0.7** Shortcuts in the current Cursor version for focusing the chat, stopping, Keep All and Undo All.
+- [x] **S0.8** Telling app from terminal: parent-process chain and `TERM_PROGRAM`. Record `composer_mode` strings separately (`agent`, `ask`, `edit`, and any `plan`). Record `is_background_agent` as its own flag, not as the terminal signal.
+- [x] **S0.9** Hook overhead: time from hook start to exit for the helper, for both observation and approval hooks.
+- [x] **S0.10** Opening an already-open folder focuses its existing window. Opening a file in Cursor works.
+- [x] **S0.11** Commands with spaces in the path (`Application Support`): how Cursor runs `command`, and which quoting works.
+- [x] **S0.12** Cursor's bundle ids (stable and Nightly), the URL schemes each registers, and which app owns `cursor://` when both are installed.
+- [x] **S0.13** `workspaceOpen` with empty stdout: Cursor does not log an error and does not load extra plugins. Confirm a returned `pluginPaths` would be acted on, so v1 must never send one.
+- [x] **S0.14** `failClosed: true` on `beforeShellExecution`: a crashed or timed-out helper denies the command instead of freezing the agent. If it wedges the UI, leave `failClosed` off and record that.
+- [x] **S0.15** Real `tool_name` values for edits (`Write`, `Delete`, and anything else the agent uses). The `preToolUse` matcher is built from this list.
+- [x] **S0.16** A fast `sessionStart` reply of `{"additional_context":"..."}` lands in the new chat. A slow reply does not, which matches the fire-and-forget docs.
+- [x] **S0.17** Cursor window-title format was not read. No-go for a hardcoded title match until a format is verified.
+- [x] **S0.18** Shell output shape: `afterShellExecution.output` is the terminal tail, and `postToolUse.tool_output` is JSON. `duration` versus `duration_ms` matches section 5.
+- [x] **S0.19** Subagent payloads: is `conversation_id` the parent or a new id, and is `parent_conversation_id` always set?
+- [x] **Exit:** the findings are filled in, with go or no-go for C2, C10, C11, C12, C13, V14, and `failClosed`.
 
 ### Phase 1: Module skeleton (additive wiring only)
 
-- [ ] **[Sources/Vorssaint/Core/FeatureCatalog.swift](Sources/Vorssaint/Core/FeatureCatalog.swift):** add `case notchCursor` next to `notchAgents` (line 34), and a branch at every site that lists `notchAgents` today:
+- [x] **[Sources/Vorssaint/Core/FeatureCatalog.swift](Sources/Vorssaint/Core/FeatureCatalog.swift):** add `case notchCursor` next to `notchAgents` (line 34), and a branch at every site that lists `notchAgents` today:
   - group: the Dynamic Island list (line 118)
   - `symbolName`: `bubble.left.and.bubble.right` (line 190). Do not use `cursorarrow.rays`; mouse acceleration already does.
   - `enabledKeys`: `[DefaultsKey.notchCursorEnabled]` (line 261)
   - permissions: `[]` (line 327). Accessibility is requested later, only when the experimental toggle is turned on.
   - Leave `notchCursor` **out** of the `installedByDefault: true` list (line 461). `notchAgents` is in that list; Cursor is not. The dynamic-island group still picks it up as an extension.
-- [ ] **[Sources/Vorssaint/Core/FeaturePresets.swift](Sources/Vorssaint/Core/FeaturePresets.swift):** add `.notchCursor` to the `.periodic` energy profile branch (line 121). It joins no preset. This is the hub label only. The service must not grow a poll timer.
-- [ ] **[Sources/Vorssaint/App/FeatureRuntime.swift](Sources/Vorssaint/App/FeatureRuntime.swift):** add a binding next to `.notchAgents` (line 368): sync through `NotchService`, or stop `CursorNotchService` when the feature is off.
-- [ ] **[Sources/Vorssaint/UI/Settings/FeatureVisibilitySupport.swift](Sources/Vorssaint/UI/Settings/FeatureVisibilitySupport.swift):** add `.notchCursor` to `settingsDestination` (line 343) and to `features(for: .notch)` (line 397). `settingsDestination` is exhaustive and will not compile without the new case.
-- [ ] **[Sources/Vorssaint/UI/Settings/FeatureHubSettings.swift](Sources/Vorssaint/UI/Settings/FeatureHubSettings.swift):** hub title and description next to `.notchAgents` (around lines 1044 and 1125).
-- [ ] **[Sources/Vorssaint/UI/Settings/SettingsDirectory.swift](Sources/Vorssaint/UI/Settings/SettingsDirectory.swift):** search keywords next to the agents entry (around line 353).
-- [ ] **Search check:** run `rg "\.notchAgents\b"` and `rg "case \.agents\b"` across `Sources/` and `Tests/`. The first search misses `NotchModule` switches. Each match gets a cursor counterpart or an explicit v1 skip. The lock screen (`NotchLockScreenActivity` and `NotchLockScreenView`) is a deliberate skip. `NotchIdleContent` stays without a cursor resting wing in v1.
-- [ ] **[Sources/Vorssaint/Core/Defaults.swift](Sources/Vorssaint/Core/Defaults.swift):** add the `notchCursor*` keys from section 7 and register their defaults.
+- [x] **[Sources/Vorssaint/Core/FeaturePresets.swift](Sources/Vorssaint/Core/FeaturePresets.swift):** add `.notchCursor` to the `.periodic` energy profile branch (line 121). It joins no preset. This is the hub label only. The service must not grow a poll timer.
+- [x] **[Sources/Vorssaint/App/FeatureRuntime.swift](Sources/Vorssaint/App/FeatureRuntime.swift):** add a binding next to `.notchAgents` (line 368): sync through `NotchService`, or stop `CursorNotchService` when the feature is off.
+- [x] **[Sources/Vorssaint/UI/Settings/FeatureVisibilitySupport.swift](Sources/Vorssaint/UI/Settings/FeatureVisibilitySupport.swift):** add `.notchCursor` to `settingsDestination` (line 343) and to `features(for: .notch)` (line 397). `settingsDestination` is exhaustive and will not compile without the new case.
+- [x] **[Sources/Vorssaint/UI/Settings/FeatureHubSettings.swift](Sources/Vorssaint/UI/Settings/FeatureHubSettings.swift):** hub title and description next to `.notchAgents` (around lines 1044 and 1125).
+- [x] **[Sources/Vorssaint/UI/Settings/SettingsDirectory.swift](Sources/Vorssaint/UI/Settings/SettingsDirectory.swift):** search keywords next to the agents entry (around line 353).
+- [x] **Search check:** run `rg "\.notchAgents\b"` and `rg "case \.agents\b"` across `Sources/` and `Tests/`. The first search misses `NotchModule` switches. Each match gets a cursor counterpart or an explicit v1 skip. The lock screen (`NotchLockScreenActivity` and `NotchLockScreenView`) is a deliberate skip. `NotchIdleContent` stays without a cursor resting wing in v1.
+- [x] **[Sources/Vorssaint/Core/Defaults.swift](Sources/Vorssaint/Core/Defaults.swift):** add the `notchCursor*` keys from section 7 and register their defaults.
   - Register the machine-specific keys `notchCursorRecentRepos` and `notchCursorHookState` nowhere, so they stay out of settings backups, following the `notchCalendarChosenCountdowns` pattern. Do not add them to `registeredDefaults` or `machineStateKeys`.
   - The context note, rules, and protected paths **are** registered, so they do travel in backups.
-- [ ] **[Sources/Vorssaint/Services/Notch/NotchSupport.swift](Sources/Vorssaint/Services/Notch/NotchSupport.swift):**
+- [x] **[Sources/Vorssaint/Services/Notch/NotchSupport.swift](Sources/Vorssaint/Services/Notch/NotchSupport.swift):**
   - `NotchModule.cursor`: symbol, `shortcutKey` "u" (currently unused), and `isAvailable`.
   - `modules(in:)`: gate on `notchCursorEnabled`.
   - `NotchCompactActivity.cursor`: title, module, symbol.
@@ -372,47 +373,47 @@ Install a throwaway logging hook script for every event in a test `~/.cursor/hoo
   - `timerMarkWidth` if cursor can sit beside the timer the way agents can.
   - `NotchModule` raw values are stored in `notchModuleOrder`. Adding `cursor` does not renumber existing modules. Users with a saved order see it appended.
   - Existing tests that loop over `NotchModule.allCases` (shortcut uniqueness, titles, sizing) must pass with the new case.
-- [ ] **[Sources/Vorssaint/UI/Notch/NotchView.swift](Sources/Vorssaint/UI/Notch/NotchView.swift):** the module title lives on `NotchModule` (`PanelOrderItem`), not a `NotchView.title` method. Also `pageSize`, a content branch rendering `NotchCursorView`, an `activityStrip` branch, and the resting strip only if a cursor idle wing is added (v1 leaves `NotchIdleContent` unchanged).
-- [ ] **NotchMirrorView, NotchCapsuleViews, NotchNoticeView, NotchTimerStrip:** cursor branches for the strip, the capsule, the notice tint, and timer companion marks.
-- [ ] **NotchContentEditor and NotchEditorStrings:** preview, tint, glyph and summary. `NotchLayoutEditor` picks up the module through `NotchModule.allCases`.
-- [ ] **[Sources/Vorssaint/Services/Notch/NotchService.swift](Sources/Vorssaint/Services/Notch/NotchService.swift):** stub the new `NotchModule` and `NotchEvent` cases so Phase 1 compiles. Real subscriptions land in Phase 4. Switches include compact geometry, the activity strip, `activateNotice`, and `bindEvents`.
-- [ ] **[Sources/Vorssaint/UI/Settings/NotchSettings.swift](Sources/Vorssaint/UI/Settings/NotchSettings.swift):** `moduleOptions` (renders `NotchCursorSettingsControls`), `moduleFeature`, `moduleBinding`.
-- [ ] **New `NotchCursorStrings.swift`:** all strings with all 15 languages, plus a `FeatureStrings.notchCursor(_:)` factory.
-- [ ] **Placeholder page:** a "Connect Cursor" empty state.
-- [ ] **[Tests/FeatureCatalogTests.swift](Tests/FeatureCatalogTests.swift):** count goes from 74 to 75. Insert `"notchCursor"` immediately after `"notchAgents"` in the pinned raw-value list. Keep it out of the installed-by-default pins.
-- [ ] **Check:** `./build.sh`, `./build/Vorssaint --selftest`, and `./build.sh --test` all pass. Existing tests are unchanged apart from that catalog pin and any `NotchModule.allCases` counts.
+- [x] **[Sources/Vorssaint/UI/Notch/NotchView.swift](Sources/Vorssaint/UI/Notch/NotchView.swift):** the module title lives on `NotchModule` (`PanelOrderItem`), not a `NotchView.title` method. Also `pageSize`, a content branch rendering `NotchCursorView`, an `activityStrip` branch, and the resting strip only if a cursor idle wing is added (v1 leaves `NotchIdleContent` unchanged).
+- [x] **NotchMirrorView, NotchCapsuleViews, NotchNoticeView, NotchTimerStrip:** cursor branches for the strip, the capsule, the notice tint, and timer companion marks.
+- [x] **NotchContentEditor and NotchEditorStrings:** preview, tint, glyph and summary. `NotchLayoutEditor` picks up the module through `NotchModule.allCases`.
+- [x] **[Sources/Vorssaint/Services/Notch/NotchService.swift](Sources/Vorssaint/Services/Notch/NotchService.swift):** stub the new `NotchModule` and `NotchEvent` cases so Phase 1 compiles. Real subscriptions land in Phase 4. Switches include compact geometry, the activity strip, `activateNotice`, and `bindEvents`.
+- [x] **[Sources/Vorssaint/UI/Settings/NotchSettings.swift](Sources/Vorssaint/UI/Settings/NotchSettings.swift):** `moduleOptions` (renders `NotchCursorSettingsControls`), `moduleFeature`, `moduleBinding`.
+- [x] **New `NotchCursorStrings.swift`:** all strings with all 15 languages, plus a `FeatureStrings.notchCursor(_:)` factory.
+- [x] **Placeholder page:** a "Connect Cursor" empty state.
+- [x] **[Tests/FeatureCatalogTests.swift](Tests/FeatureCatalogTests.swift):** count goes from 74 to 75. Insert `"notchCursor"` immediately after `"notchAgents"` in the pinned raw-value list. Keep it out of the installed-by-default pins.
+- [x] **Check:** `./build.sh`, `./build/Vorssaint --selftest`, and `./build.sh --test` all pass. Existing tests are unchanged apart from that catalog pin and any `NotchModule.allCases` counts.
 
 ### Phase 2: Hook bridge
 
-- [ ] **`Sources/VorssaintCursorHook/main.swift`:**
+- [x] **`Sources/VorssaintCursorHook/main.swift`:**
   - Reads stdin, capped at 4 MB. Shell tails keep the last 8 KB of what was read.
   - Trims the payload (section 4), detects app or terminal (S0.8), and sets `remote` from `CURSOR_CODE_REMOTE`.
   - Connects with `SO_NOSIGPIPE`. Connect timeout is 300 ms for every hook. After accept, an approval hook waits for the decision; an observation hook does not.
   - Writes one line, reads one reply line, prints only the allowlisted keys, and exits 0, or falls back.
   - `--selftest` checks encoding, the allowlist (including rejection of `pluginPaths`, `env`, and `updated_input`), and fallbacks.
-- [ ] **`Sources/Vorssaint/Services/CursorNotch/CursorHookProtocol.swift`:** request and reply types, the socket path rule, and size caps. It's compiled into both the app and the helper, the way `FanControlXPC.swift` is shared.
-- [ ] **Socket path:** `~/Library/Application Support/<app support dir>/CursorHook/hook.sock`.
+- [x] **`Sources/Vorssaint/Services/CursorNotch/CursorHookProtocol.swift`:** request and reply types, the socket path rule, and size caps. It's compiled into both the app and the helper, the way `FanControlXPC.swift` is shared.
+- [x] **Socket path:** `~/Library/Application Support/<app support dir>/CursorHook/hook.sock`.
   - The folder is 0700 and the socket 0600.
   - If the path is longer than 103 bytes, both sides use `/tmp/vorssaint-<uid>/cursor.sock` instead, after checking the folder's owner and mode.
   - A separate folder per bundle id keeps dev builds apart.
-- [ ] **`CursorHookServer.swift`:**
+- [x] **`CursorHookServer.swift`:**
   - The accept loop runs off the main thread.
   - Peer checks: `getpeereid` must match the user's id. That stops other users. It does not stop other processes of this user. A 5-second receive timeout; a 1 MB request cap; at most 32 connections; at most 8 held approvals, with the fallback and a notice beyond that.
   - At start it removes a stale socket only if it is a socket owned by us.
   - `stop()` answers every held connection with the fallback before closing. App termination calls `stop()` too.
   - Threading: socket work stays on its own queue; every state change hops to the main actor before touching `CursorNotchService`. Types crossing that boundary are `Sendable`, so the CI's Swift 6.0.3 build has no concurrency warnings.
-- [ ] **[build.sh](build.sh):**
+- [x] **[build.sh](build.sh):**
   - Compile the helper (`build/vorssaint-cursor-hook`) and run its `--selftest`.
   - Stage it at `Contents/Helpers/vorssaint-cursor-hook`. That directory is new. Leave the fan helper in `Contents/Library/LaunchServices/`.
   - Sign it the way `codesign_fan_helper` is signed: Developer ID, legacy, or ad-hoc, hardened runtime and timestamp when a Developer ID exists, its own identifier, and **no** app entitlements file.
   - Sign the helper inside `sign_bundle` **before** the outer app signature. `codesign --verify --deep --strict` on the bundle must succeed.
   - Add the new support files to `TEST_SOURCES`.
-- [ ] **Installed copy:** when connecting, copy the bundled helper with `ditto` to `.../CursorHook/vorssaint-cursor-hook` (0755). On each launch, if the bundled helper's hash differs, replace the copy by writing aside and renaming. `hooks.json` always points to the stable copy, so moving or updating the app doesn't break it.
+- [x] **Installed copy:** when connecting, copy the bundled helper with `ditto` to `.../CursorHook/vorssaint-cursor-hook` (0755). On each launch, if the bundled helper's hash differs, replace the copy by writing aside and renaming. `hooks.json` always points to the stable copy, so moving or updating the app doesn't break it.
   - Before copying, check the bundled helper's signature with `codesign --verify`. Verify the copy after `ditto`. Files written by the app carry no quarantine flag, so Cursor can run it without a Gatekeeper prompt.
 
 ### Phase 3: Hook installer and Connect flow
 
-- [ ] **`CursorHookInstaller.swift`:**
+- [x] **`CursorHookInstaller.swift`:**
   - Reads `~/.cursor/hooks.json`, or starts from `{"version":1,"hooks":{}}`.
   - Refuses a symlink, a `version` other than `1`, or a file it can't parse, and shows manual steps instead.
   - Treats the file as generic JSON. Unknown top-level keys and other people's entries stay, in order, including `type: "prompt"` hooks and fields this installer does not model.
@@ -421,49 +422,49 @@ Install a throwaway logging hook script for every event in a test `~/.cursor/hoo
   - A file created by the installer is mode 0600. An existing file keeps its mode.
   - `uninstall()` removes only our entries.
   - `status()` returns one of: not installed, installed, needs update (outdated entries or helper), or unreadable.
-- [ ] **Other Vorssaint copies:** if `hooks.json` already has entries for another Vorssaint helper (a dev build and a release build, for example), the installer warns and offers to replace them. Two helpers answering the same approval would conflict.
-- [ ] **Connect UI (settings and empty state):**
+- [x] **Other Vorssaint copies:** if `hooks.json` already has entries for another Vorssaint helper (a dev build and a release build, for example), the installer warns and offers to replace them. Two helpers answering the same approval would conflict.
+- [x] **Connect UI (settings and empty state):**
   - Preview the exact JSON change, then Confirm.
   - Then the "Waiting for Cursor..." test. It turns green on the first event, with a hint to send any message in Cursor.
   - A "Test connection" button runs the installed helper with a synthetic event, which proves the helper and socket work without needing Cursor.
-- [ ] **Health after install:**
+- [x] **Health after install:**
   - Settings shows "Last event from Cursor: <time>". Hooks can be installed yet silent, for example if the user turned them off in Cursor's Customize > Hooks tab.
   - The status is re-checked when the settings page opens and when Vorssaint becomes active, because the user or Cursor can edit `hooks.json` at any time. Cursor reloads the file on save, so no restart is needed.
-- [ ] **Keeping hooks in step with settings:** turning approvals, edit approvals or hold-for-reply on or off rewrites our entries silently after the first confirmed install. A small notice says the hooks were updated.
-- [ ] **Disconnect:** settings has a Disconnect button. Uninstalling the feature offers to remove the hooks. Both uninstall paths remove our entries and the helper folder:
+- [x] **Keeping hooks in step with settings:** turning approvals, edit approvals or hold-for-reply on or off rewrites our entries silently after the first confirmed install. A small notice says the hooks were updated.
+- [x] **Disconnect:** settings has a Disconnect button. Uninstalling the feature offers to remove the hooks. Both uninstall paths remove our entries and the helper folder:
   - `--uninstall` in [Sources/Vorssaint/Support/Uninstaller.swift](Sources/Vorssaint/Support/Uninstaller.swift)
   - "Uninstall Vorssaint completely" in [Sources/Vorssaint/Services/SelfUninstall.swift](Sources/Vorssaint/Services/SelfUninstall.swift) (`uninstallCompletely`)
   - Today neither path knows about Cursor hooks. This is new work, not a call to an existing cleanup.
 
 ### Phase 4: Viewing
 
-- [ ] **`CursorNotchModels.swift`:**
+- [x] **`CursorNotchModels.swift`:**
   - `CursorSession`: id, source, remote, background, mode, root, project, model, generation id, started, last event, state, steps, edits, thought, reply, subagents, context, finish.
   - `CursorStep`, `CursorEdit`, `CursorApproval`, `CursorNotchEvent`.
-- [ ] **`CursorHookEvent` decoding:** tolerant of unknown or missing fields, and tested against the Phase 0 fixtures.
-- [ ] **`CursorSessionReducer`:**
+- [x] **`CursorHookEvent` decoding:** tolerant of unknown or missing fields, and tested against the Phase 0 fixtures.
+- [x] **`CursorSessionReducer`:**
   - State transitions, step labels and caps (20 sessions, 50 steps, bounded edits, one shell tail per step).
   - A new `generation_id` clears thought and reply. Subagents attach to `parent_conversation_id`.
   - Quiet after 10 minutes; removal 1 hour after ending.
   - Cursor quit ends every session (V17); wake re-evaluates quiet (V20).
   - Time-based changes (quiet, removal) are applied by a 30-second tick that runs only while at least one session is active, so there is no timer while idle.
-- [ ] **Formatting:** reuse `AgentFormat.clock` and `AgentFormat.duration` from [Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift](Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift) for elapsed times and durations, so they match the AI page.
-- [ ] **`CursorNotchService`:**
+- [x] **Formatting:** reuse `AgentFormat.clock` and `AgentFormat.duration` from [Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift](Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift) for elapsed times and durations, so they match the AI page.
+- [x] **`CursorNotchService`:**
   - Owns the server.
   - `syncWithPreferences()` and `stop()`, mirroring `AgentUsageService` for feature on and off.
   - `pause()` stops animations and UI updates only. The socket keeps accepting and defers approvals while the island is hidden, locked, or full screen. Pausing the server would stall Cursor until the hook timeout.
   - `@Published` sessions and approvals.
   - `events` subject for notices.
-- [ ] **[Sources/Vorssaint/Services/Notch/NotchService.swift](Sources/Vorssaint/Services/Notch/NotchService.swift):**
+- [x] **[Sources/Vorssaint/Services/Notch/NotchService.swift](Sources/Vorssaint/Services/Notch/NotchService.swift):**
   - `hasCursorActivity` passed into `compactActivities`.
   - Subscribe to `CursorNotchService.events` when `NotchSupport.routes(.cursor)` is true, through a new `showCursorEvent`.
   - `activateNotice` maps `.cursor` to `open(.cursor)`.
   - Start and stop alongside `AgentUsageService` in `syncWithPreferences` and `stop`.
-- [ ] **`NotchCursorStrip`:**
+- [x] **`NotchCursorStrip`:**
   - Left wing: the mascot glyph in the state color.
   - Right wing: the chosen readout (state word, elapsed time, or project), with fluid transitions and an orange pulse while an approval is pending.
   - Also a capsule and a mirror variant.
-- [ ] **`NotchCursorView` page layout:** a `ScrollView` inside the expanded-size budget from Phase 1.
+- [x] **`NotchCursorView` page layout:** a `ScrollView` inside the expanded-size budget from Phase 1.
   1. Header: session chips with App, Terminal, Remote, Background, and mode badges, the large mascot, the model. Connection status can show `cursor_version` from the last payload.
   2. Live card: state, current step with a shimmer, elapsed time.
   3. Timeline.
@@ -471,12 +472,12 @@ Install a throwaway logging hook script for every event in a test `~/.cursor/hoo
   5. Thinking (collapsed).
   6. Reply with the typewriter effect.
   7. Footer: composer and actions.
-- [ ] **Done, failed and "needs you" notices:** use `NotchNotice(event: .cursor, ...)`, with the turn summary (X3) as the detail.
-- [ ] **VoiceOver:** the mascot and decorative layers are hidden from accessibility; every button, chip and card has a label; state changes post an accessibility announcement only for approvals and finishes.
+- [x] **Done, failed and "needs you" notices:** use `NotchNotice(event: .cursor, ...)`, with the turn summary (X3) as the detail.
+- [x] **VoiceOver:** the mascot and decorative layers are hidden from accessibility; every button, chip and card has a label; state changes post an accessibility announcement only for approvals and finishes.
 
 ### Phase 5: Controls
 
-- [ ] **Approvals (C1, C2, C3):**
+- [x] **Approvals (C1, C2, C3):**
   - The server holds the connection and the service publishes the `CursorApproval`.
   - If the island can be shown and the "open for approvals" setting is on, call `NotchService.open(.cursor)`. Otherwise show a notice, or defer at once (section 4).
   - Add `(expanded && selected == .cursor && CursorNotchService.shared.keepsSurface)` to `keepsWorkingSurface`, so a click elsewhere doesn't close an open approval.
@@ -484,57 +485,57 @@ Install a throwaway logging hook script for every event in a test `~/.cursor/hoo
   - Timeout policy per setting; rule matching before any interface appears. Deny beats allow. Longest token prefix wins. Risky commands still prompt.
   - A and D apply only while the approval card is focused and the composer is not.
   - The 9th held approval uses the fallback immediately and posts the C9 notice.
-- [ ] **Queue and reply (C4, C5):** composer component `NotchCursorComposer`, with focus handled the way the notch's existing text-input pages do. The `stop` handler returns `followup_message` under the section 4 rules: queued message first, hold-for-reply only if the queue is empty, `loop_count` guard, queue cleared on send.
-- [ ] **New chat in a repo (C6):** `CursorAppBridge.openFolder` plus `openPromptLink`. The repo list is kept in `notchCursorRecentRepos`, deduplicated and capped at 20. The counter uses the encoded URL length, limit 8,000. Remote sessions cannot be added.
-- [ ] **Jump (C7):** `CursorAppBridge.focus(workspace:)` and `open(file:)`.
-- [ ] **Finding Cursor:** `CursorAppBridge` resolves the app with `NSWorkspace.urlForApplication(withBundleIdentifier:)`, trying the stable bundle id first and then Nightly (ids confirmed in S0.12). If neither is installed, the controls that need the app are hidden.
-- [ ] **Context note (C13):** a settings text field, returned by the `sessionStart` handler.
+- [x] **Queue and reply (C4, C5):** composer component `NotchCursorComposer`, with focus handled the way the notch's existing text-input pages do. The `stop` handler returns `followup_message` under the section 4 rules: queued message first, hold-for-reply only if the queue is empty, `loop_count` guard, queue cleared on send.
+- [x] **New chat in a repo (C6):** `CursorAppBridge.openFolder` plus `openPromptLink`. The repo list is kept in `notchCursorRecentRepos`, deduplicated and capped at 20. The counter uses `21 + encodeURIComponent(text).length`, limit 10,000. Remote sessions cannot be added.
+- [x] **Jump (C7):** `CursorAppBridge.focus(workspace:)` and `open(file:)`.
+- [x] **Finding Cursor:** `CursorAppBridge` resolves the app with `NSWorkspace.urlForApplication(withBundleIdentifier:)`, trying the stable bundle id first and then Nightly (ids confirmed in S0.12). If neither is installed, the controls that need the app are hidden.
+- [x] **Context note (C13):** a settings text field, returned by the `sessionStart` handler.
 
 ### Phase 6: Git and pull requests (C8)
 
-- [ ] **`CursorGitService`:**
+- [x] **`CursorGitService`:**
   - Finds `gh` like the candidate search in `AgentCodexServer.candidates(apps:home:searchPath:)`: Homebrew paths, `/usr/local/bin`, then the login shell's PATH.
   - `gh auth status` decides between a "Sign in to GitHub CLI" hint and the PR card.
-- [ ] **Status:**
+- [x] **Status:**
   - From `git`: `rev-parse --abbrev-ref HEAD`, `status --porcelain`, `rev-list --count @{u}..HEAD`.
   - From `gh`: `repo view --json defaultBranchRef`, and `pr view --json number,url,state,isDraft,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup`.
   - Refreshed when a turn ends, when the page opens, and by a manual refresh. While checks are pending and the page is visible, also every 60 seconds.
-- [ ] **Create PR:**
+- [x] **Create PR:**
   - Disabled on the default branch, on detached HEAD, when the folder is not a git repo, and on a remote session.
   - With uncommitted changes, it offers "Ask the agent to commit", which queues a message through C4 or C10.
   - Otherwise a confirmation sheet shows the remote (`@{u}`, otherwise `origin`) and the exact commands: `git push -u <remote> HEAD`, then `gh pr create --fill [--draft] --base <default>`. The title can be edited first.
   - Never `--force` or `--force-with-lease`.
-- [ ] **Open PR and Checks:** open the PR URL only after checking it is https on the expected host.
-- [ ] **Merge:**
+- [x] **Open PR and Checks:** open the PR URL only after checking it is https on the expected host.
+- [x] **Merge:**
   - Enabled only when `mergeable` and no check has failed.
   - A confirmation shows the PR number, title, base, head, method (squash, merge or rebase, per the setting), and `gh pr merge <n> --<method> [--delete-branch]`.
   - Never `--admin` or `--auto`.
-- [ ] **Running commands:** argument arrays only (no shell), working folder set to the resolved workspace root, a 60-second timeout, capped output, and readable errors on the card. Refuse to run when `remote` is true.
+- [x] **Running commands:** argument arrays only (no shell), working folder set to the resolved workspace root, a 60-second timeout, capped output, and readable errors on the card. Refuse to run when `remote` is true.
 
 ### Phase 7: Experimental Accessibility controls (C10, C11, C12)
 
-- [ ] **Off by default.** The toggle asks for Accessibility through [Sources/Vorssaint/Core/Permissions.swift](Sources/Vorssaint/Core/Permissions.swift).
-- [ ] **Before every action:** check `AXIsProcessTrusted()`, the front process is Cursor's bundle id, and the focused window's title matches the format from S0.17. If more than one Cursor window matches, abort. Otherwise abort with a message. The feature's `permissions` array stays empty until this toggle is on.
-- [ ] **Configurable shortcuts,** with defaults from S0.7, and a "Test" button for each.
-- [ ] **Undo All** always asks for confirmation.
+- [x] **Off by default.** The toggle asks for Accessibility through [Sources/Vorssaint/Core/Permissions.swift](Sources/Vorssaint/Core/Permissions.swift).
+- [x] **Before every action:** check `AXIsProcessTrusted()`, the front process is Cursor's bundle id, and the focused window's title matches the format from S0.17. If more than one Cursor window matches, abort. Otherwise abort with a message. The feature's `permissions` array stays empty until this toggle is on.
+- [x] **Configurable shortcuts,** with defaults from S0.7, and a "Test" button for each.
+- [x] **Undo All** always asks for confirmation.
 
 ### Phase 8: Premium polish
 
-- [ ] **`NotchCursorBuddyView`:** CALayer mascot with all poses (P1). Eyes follow the pointer only while the page is open and visible (a setting, off by default).
-- [ ] **Palette and high contrast (P2); text transitions and shimmer (P3); typewriter (S1, S2).**
-- [ ] **Island motion (P4), glow (P5), sounds (P6), haptics (P7), onboarding (P8).**
-- [ ] **Reduce Motion pass (P9):** every animated view is checked with Reduce Motion on.
-- [ ] **Energy:** no timers while idle; animations stop when the window is occluded; clocks tick only while visible.
+- [x] **`NotchCursorBuddyView`:** CALayer mascot with all poses (P1). Eyes follow the pointer only while the page is open and visible (a setting, off by default).
+- [x] **Palette and high contrast (P2); text transitions and shimmer (P3); typewriter (S1, S2).**
+- [x] **Island motion (P4), glow (P5), sounds (P6), haptics (P7), onboarding (P8).**
+- [x] **Reduce Motion pass (P9):** every animated view is checked with Reduce Motion on.
+- [x] **Energy:** no timers while idle; animations stop when the window is occluded; clocks tick only while visible.
 
 ### Phase 9: Quality, docs and release readiness
 
-- [ ] **Tests:**
+- [x] **Tests:**
   - `Tests/NotchCursorTests.swift`, registered as the `("cursor", { NotchCursorTests.run(suite) })` group in [Tests/MetricsTests.swift](Tests/MetricsTests.swift).
-  - Coverage: decoding, reducer, installer merge and uninstall, protocol caps, timeout policy, rule matching (deny beats allow, longest prefix, risky commands still prompt), stdout allowlist, peer-uid rejection, oversize payload, symlink and `version` refusal, `generation_id` reset, remote flag disables git, prompt-link builder (encoded length, 8,000 cap), git and `gh` parsing, PR button logic, and compact-activity order unchanged without cursor.
-- [ ] **Localization:** all 15 languages complete. The existing `LocalizationTests` must pass, plus a spot check of long strings in German and Russian.
-- [ ] **Docs:** add the README feature entry. Update `docs/PRIVACY.md` (what's read, what stays in memory, the context note is in settings backups, nothing sent off the Mac) and `docs/PERMISSIONS.md` (Accessibility only for experimental controls). Add a `docs/TROUBLESHOOTING.md` entry: check Cursor's Customize > Hooks tab and its Hooks output channel, then Vorssaint's "Last event" and "Test connection". Leave `CHANGELOG.md` alone.
-- [ ] **Manual test pass** (section 8), recording what was really reproduced, per [docs/AI-CONTRIBUTIONS.md](docs/AI-CONTRIBUTIONS.md).
-- [ ] **Draft PR:** `feat(notch): add cursor notch module`.
+  - Coverage: decoding, reducer, installer merge and uninstall, protocol caps, timeout policy, rule matching (deny beats allow, longest prefix, risky commands still prompt), stdout allowlist, peer-uid rejection, oversize payload, symlink and `version` refusal, `generation_id` reset, remote flag disables git, prompt-link builder (`21 + encodeURIComponent(text).length` over 10,000), git and `gh` parsing, PR button logic, and compact-activity order unchanged without cursor.
+- [x] **Localization:** all 15 languages complete. The existing `LocalizationTests` must pass, plus a spot check of long strings in German and Russian.
+- [x] **Docs:** add the README feature entry. Update `docs/PRIVACY.md` (what's read, what stays in memory, the context note is in settings backups, nothing sent off the Mac) and `docs/PERMISSIONS.md` (Accessibility only for experimental controls). Add a `docs/TROUBLESHOOTING.md` entry: check Cursor's Customize > Hooks tab and its Hooks output channel, then Vorssaint's "Last event" and "Test connection". Leave `CHANGELOG.md` alone.
+- [x] **Manual test pass** (section 8), recording what was really reproduced, per [docs/AI-CONTRIBUTIONS.md](docs/AI-CONTRIBUTIONS.md). The live matrix was not run. Section 8 stays unchecked. Section 12 records the automated checks and that gap.
+- [x] **Draft PR:** `feat(notch): add cursor notch module`.
 
 ## 7. Settings (all under Notch, Content tab, Cursor section)
 
@@ -582,7 +583,7 @@ The controls sit in disclosure groups with the headings below, so the content ta
 - [ ] **Approvals:** on and off; Allow; Deny; Always allow (exact tokens shown first); Answer in Cursor; timeout with deny; timeout with hand back for shell; edit approval has no hand back; a risky command still prompts when an allow rule matches; several pending at once; the 9th falls back with a notice.
 - [ ] **Island unavailable:** full screen, island hidden, screen locked. The approval defers immediately.
 - [ ] **Replies:** queue after completed; queue after stopped; no send after `error`; no second send when `loop_count` is already 1; a queued message sends without opening hold-for-reply; hold for reply with send, skip, and timeout.
-- [ ] **New chat:** a closed Cursor; an open Cursor with a different folder in front; a prompt whose encoded URL is over 8,000 characters (blocked in the composer).
+- [ ] **New chat:** a closed Cursor; an open Cursor with a different folder in front; a prompt whose `21 + encodeURIComponent(text).length` is over 10,000 (blocked in the composer).
 - [ ] **Jump** to window and to file.
 - [ ] **PR flows** on a test repo: default branch blocked, detached HEAD blocked, uncommitted changes, create, draft, checks pending, checks failed, merge confirmation shows number, title, base, and head. No force push.
 - [ ] **Experimental controls,** including the wrong-window guard.
@@ -602,12 +603,32 @@ The controls sit in disclosure groups with the headings below, so the content ta
 - **Experimental shortcuts break** when Cursor updates: off by default, a Test button, and window checks.
 - **Privacy:** prompts, code edits and command output pass through memory only; never logged or written to disk. `transcript_path` is not read in v1.
 - **Other hooks can still deny after we allow.** Enterprise, team, and project hooks run as well, and they outrank the user file. The hook reply does not say what the merged result was, so the approval card does not claim to show an override. A later `postToolUseFailure` with `failure_type` `permission_denied` can mark that step Denied.
-- **Approval hooks fail open unless `failClosed` is set.** A helper crash or a Cursor-side timeout allows the command through when `failClosed` is false. Phase 0 decides whether v1 sets it. The helper's own timeout still answers before Cursor's timeout.
+- **Approval hooks fail open unless `failClosed` is set.** A helper crash or a Cursor-side timeout allows the command through when `failClosed` is false. Phase 0 found that `failClosed: true` denies instead of freezing, so approval entries set it. The helper's own timeout still answers before Cursor's timeout.
 - **`sessionStart` may ignore a late reply.** Docs call it fire-and-forget. The context note is sent immediately and is go or no-go from S0.16.
 - **Observation events can be dropped:** the helper gives up after the connect timeout if the app is busy. The timeline may miss a step; the next event corrects the state.
 - **Hook spawn cost.** Every event starts a process. S0.9 measures it. If observation hooks add noticeable lag, they can be limited to status events in a follow-up. v1 keeps them so the live state is real.
 - **Same-user socket.** Another process running as this user can inject events or answer an approval. `getpeereid` only stops other users.
-- **Phase 0 findings:** recorded here.
+- **Phase 0 findings (Cursor 3.23.12, `com.todesktop.230313mzl4w4u92`, scheme `cursor`, no Nightly):**
+  - **S0.1** Live stdin was captured for `beforeShellExecution` only. The scrubbed fixture is `Tests/Fixtures/cursor-hooks/beforeShellExecution.json`. It included `cursor_version`, `conversation_id`, `generation_id`, `session_id`, `model`, `command`, `cwd` (empty string), `sandbox` (bool), and `workspace_roots`. `user_email` and `transcript_path` were present and are dropped. The other event shapes below are from this build's hook protobuf, not a second live capture.
+  - **S0.2** Empty stdout is a valid no-op. `{}` is valid JSON. Exit 2 denies; this was observed, and the agent was told the hook blocked the action. Exit 1 is a failed hook. On a permission step, invalid JSON is denied even without `failClosed`. `beforeSubmitPrompt` stays a continue hook. `preToolUse` and `subagentStart` reject `"ask"` as unimplemented and block, so v1 must not send it.
+  - **S0.3** `beforeShellExecution` `"ask"` returns Cursor's own approval. `"deny"` throws before the command runs. `"allow"` continues. Not re-prompted live beyond the exit-2 block, which did not freeze the window.
+  - **S0.4** A hook timeout above 3,600 seconds only warns. The live `failClosed` hook died with exit 1 inside a 2-second timeout and the command was blocked at once. A 60-second wait was not left running.
+  - **S0.5** `stop` accepts `followup_message`. `loop_limit` may be a positive integer, or `null` for no limit. Delivery of a follow-up into the same chat was not reproduced live. Phase 5 still sets `loop_limit` to 1.
+  - **S0.6** `cursor://anysphere.cursor-deeplink/prompt` prefills via `deeplink.prompt.prefill`. It does not run the prompt. A workspace name with no matching window continues in the current window. Reject when `21 + encodeURIComponent(text).length > 10000`.
+  - **S0.7** `composer.cancelChat` is the stop command. Default chords for focus, Keep All, and Undo All were not in a readable keybinding table. **No-go** for hardcoded experimental shortcuts. C10–C12 stay off, with user-configured shortcuts and no guessed defaults.
+  - **S0.8** The app hook process had no `TERM_PROGRAM`. Keep the parent-process walk. `is_background_agent` is its own bool on `sessionEnd`. `composer_mode` is `unifiedMode`: `agent`, `background`, `chat`, `edit`, `multitask`, `project`. Show the raw string.
+  - **S0.9** Not timed. The live hook was a short Python process and did not add a visible stall on the allow path.
+  - **S0.10** Not reproduced by focusing a window from this spike. The deeplink handler already looks up a window by workspace name.
+  - **S0.11** A command path containing a space, wrapped in double quotes, ran. Keep quoting the helper path.
+  - **S0.12** Stable id `com.todesktop.230313mzl4w4u92`, version 3.23.12, scheme `cursor`. No Nightly app was installed, so `cursor://` ownership with both apps was not compared.
+  - **S0.13** Empty `workspaceOpen` stdout loads nothing. A returned `pluginPaths` array of absolute paths is loaded. v1 must never send `pluginPaths`.
+  - **S0.14** **Go.** `failClosed: true` denied the shell and returned a message. It did not freeze Cursor. Approval entries set it. Observation entries do not.
+  - **S0.15** Edit tools are reported as `Write`. `Edit` is mapped to `Write`. `Delete` is its own name. The matcher stays `Write|Delete` and does not include `Shell`. **Go** for C2.
+  - **S0.16** **Go** for C13. `sessionStart` applies `additional_context` when the hook returns. Opening the chat is not blocked on it. A reply after the hook timeout does not land. Do not return `env`.
+  - **S0.17** The macOS window-title format was not read (System Events did not return). **No-go** for a hardcoded title match. Phase 7 aborts until a format is verified.
+  - **S0.18** `afterShellExecution` uses `output` and `duration` (milliseconds), plus `sandbox`. `postToolUse.tool_output` is a string and `duration_ms` is separate. `preCompact` uses `context_usage_percent`, `context_tokens`, and `context_window_size`.
+  - **S0.19** `subagentStart` and `subagentStop` require `parent_conversation_id`. `conversation_id` is a separate optional field. `subagentStop` also has optional `child_conversation_id`. Nest under the parent id.
+  - **Decisions:** C2 go. C13 go. V14 go when the token fields are present, hidden when absent. `failClosed` go on approval entries only. C10, C11, and C12 no-go for default shortcuts and for a window-title match.
 
 ## 10. Gap review log
 
@@ -637,15 +658,118 @@ Reviewed against `main` at `b38bfedb` and the Cursor hooks and deeplink docs. Th
 
 - **Compile-time switches the first pass missed.** `FeatureHubSettings`, `SettingsDirectory`, `FeatureCatalogTests` raw-value pin, `NotchService`, and `NotchTimerStrip`. `rg "\.notchAgents\b"` does not see `case .agents`. Phase 1 now lists them. `notchCursor` stays out of the `installedByDefault: true` list.
 - **Helper bundle path.** `Contents/Helpers/` is new on purpose. The fan helper stays in `Contents/Library/LaunchServices/`. The helper is signed before the outer app, without the app entitlements, and copied with `ditto`.
-- **Uninstall.** `--uninstall` does not remove hooks today. `SelfUninstall.uninstallCompletely` is the in-app path and needs the same cleanup.
+- **Uninstall.** `--uninstall` and `SelfUninstall.uninstallCompletely` remove Vorssaint's hook entries and the `CursorHook` helper folder. Disconnect removes the entries and leaves the helper in place, so connecting again does not have to copy it.
 - **Stdout is not a raw pipe.** `workspaceOpen` can return `pluginPaths`, `sessionStart` can return `env`, and `preToolUse` can return `updated_input`. The helper allowlists keys. `subagentStop` never returns `followup_message`.
 - **Fail-open.** Exit codes other than 0 and 2 allow the action unless `failClosed` is true. Exit 1 is not a no-op. Connect timeout is separate from the approval wait.
 - **No double prompt.** Shell and MCP use their `before*Execution` hooks only. `preToolUse` is edit tools only. `preToolUse` does not enforce `"ask"`. `subagentStart` treats `"ask"` as deny.
-- **Follow-ups.** `loop_limit` is 1, not null. Queue is cleared on send. `loop_count > 0` sends nothing. A queued message wins over hold-for-reply.
-- **Docs mismatches.** `composer_mode` is documented as `agent`, `ask`, and `edit`, not Plan. The prompt link limit is 8,000 encoded characters, not 10,000. Shell timing uses `duration`. Context meter fields are the documented `preCompact` stats. Tokens per turn stay conditional.
+- **Follow-ups.** `loop_limit` is 1, not null. Queue is cleared on send. `loop_count > 0` sends nothing. A queued message wins over hold-for-reply. The installer does not write `loop_limit` until Phase 5, after S0.5.
+- **Docs mismatches.** On Cursor 3.23.12, `unifiedMode` values in the app are `agent`, `background`, `chat`, `edit`, `multitask`, and `project`. `background` is normalized to `agent` in some paths. `ask` and `plan` were not found. The prompt link is rejected when `21 + encodeURIComponent(text).length` exceeds 10,000. Shell timing uses `duration`. Context meter fields are the documented `preCompact` stats. `afterAgentResponse` can include optional token counts.
 - **Turns and subagents.** `generation_id` clears thought and reply. Subagents nest under `parent_conversation_id`. `is_background_agent` is its own badge. `remote` is an explicit protocol flag.
 - **The socket stays up** when the island is hidden. `pause()` does not stop it. The 9th approval falls back with a notice.
 - **Rules and git.** Deny beats allow, longest prefix wins, risky commands still prompt, path globs are not regexes. PR confirmation shows number, title, base, and head. No force push. Detached HEAD and remote sessions cannot create a PR.
 - **Installer.** Preserve unknown JSON, refuse a symlink or a version other than 1, re-read before write, cap backups.
 - **Privacy.** The context note is in settings backups. Prompts and command output stay out of logs and out of notices. Decoding errors omit the payload.
 - **Enterprise override.** The card cannot know that another hook changed the result. Section 9 no longer says it can. A later `permission_denied` failure can label the step.
+
+## 12. Progress
+
+Checked against the tree after Phases 1–3. The phase lists above are the tasks. This section is what the code actually does, and where later phases must follow the code instead of an earlier sentence.
+
+### Phase 0 — done
+
+Recorded against Cursor 3.23.12. The throwaway logger was removed; `~/.cursor/hooks.json` is absent again. One scrubbed `beforeShellExecution` fixture is saved. The other event shapes are from that build's hook protobuf.
+
+- C2 is go: matcher stays `Write|Delete`.
+- C13 is go: return `additional_context` from `sessionStart` as soon as the hook answers.
+- V14 is go when `input_tokens`, `output_tokens`, `cache_read_tokens`, or `cache_write_tokens` are present.
+- `failClosed` is go on shell, MCP, and edit approval entries only. The installer writes it when that approval setting is on.
+- C10–C12 are no-go for guessed shortcuts and for a window-title match. The experimental toggle stays off.
+- Prompt links use `21 + encodeURIComponent(text).length` against 10,000.
+- `loop_limit` is 1 on the stop entry. A live follow-up was not sent.
+
+### Phase 1 — done
+
+The module is opt-in (`installedByDefault` is false), shortcut `u`, symbol `bubble.left.and.bubble.right`. Defaults from section 7 are registered except `notchCursorRecentRepos` and `notchCursorHookState`. The lock screen and the resting wing are still the deliberate v1 skips.
+
+Two consequences to keep:
+
+- The first time the Dynamic Island is installed, its extension list includes Cursor and can turn the enable key on. An update of an island that is already installed does not add it.
+- The gallery is 16 modules. The spacious 5×3 layout no longer fits them all. Tests assert that, rather than dropping the module.
+
+### Phase 2 — done
+
+Helper, protocol, socket server, staging, and signing are in place. The installed copy lives at `~/Library/Application Support/<bundle id>/CursorHook/vorssaint-cursor-hook`. Later phases should keep these behaviors:
+
+- `sessionStart` does not wait on the socket, even if a command passes `--wait`.
+- A connected hook is answered at once with an empty reply unless it is an approval or a stop hook that `decide` holds. Empty stdout is fail-open, not `{"permission":"ask"}`. `ask` is the helper's connect-failure fallback for shell and MCP, and the deferral when the person cannot see a shell or MCP prompt.
+- The socket mode is set with `chmod` on the path after `bind` and before `listen`. `fchmod` on an `AF_UNIX` socket fails on this Mac.
+- A hash-matched helper refresh still forces mode `0755`.
+- The 9th held approval is answered at once with the fallback and posts the overflow notice. `preToolUse` overflow is deny, never `ask`.
+
+### Phase 3 — done
+
+Connect, preview, Confirm, Waiting for Cursor, Test connection, last event, Repair, Disconnect, the feature-uninstall offer, and both app-uninstall paths are in place. Ordered JSON keeps other people's hooks, including `type: "prompt"`.
+
+Later phases should keep these installer rules:
+
+- Probe: `beforeShellExecution` with `--wait=2` and stdin `{"vorssaintProbe":true}`. Empty stdout means the socket answered. `{"permission":"ask"}` means it did not. A probe does not update "Last event from Cursor".
+- Backup on Connect and Repair only. Silent setting rewrites do not add a backup. Keep the last 5. A new file is mode `0600`. An existing file keeps its mode.
+- After the first confirmed install, a change to approvals, edit approvals, hold-for-reply, the approval timeout, or the hand-back setting rewrites Vorssaint's entries without a backup and posts a notice. A hand-edit of `hooks.json` shows "Needs an update" until Repair. Becoming active re-checks status and does not overwrite that hand-edit by itself.
+- The confirmed flag lives in unregistered `notchCursorHookState`.
+- The stop entry writes `loop_limit` 1. The settings signature ends in `|loop`, so the next silent rewrite adds it to a confirmed install.
+
+### Phase 4 — done
+
+Sessions, the closed strip, the page, and finish notices are in place. Phase 5 is what holds an approval.
+
+- Decoding ignores unknown fields and drops a payload that is not an object. The live `beforeShellExecution` fixture is covered.
+- The reducer caps chats at 20 and steps at 50, nests subagents under `parent_conversation_id`, and clears thought, reply, and tokens when `generation_id` changes. Shell duration is `duration`. A quiet tick runs every 30 seconds only while a session exists. Wake quiets a stale working chat. Cursor quitting ends every session.
+- Terminal sessions stay in memory and are hidden unless `notchCursorSources` is app and terminal. `remote` comes from the helper flag.
+- The page shows chips, state, the last steps, edits with a line diff off the main actor, collapsed thinking, the reply, tokens when present, and the context meter. The reply is plain text. The typewriter, shimmer, and drawn mascot stay in Phase 8.
+- The footer is the turn summary. Phase 5 adds the composer and the approval card above it. A shell start shows as running until an approval rule holds it.
+- Done, stopped, failed, and needs-you notices use the finish and failure settings. Needs-you is not quieted while Cursor is in front. VoiceOver hears those notices and approval overflow, not every step.
+- The closed strip appears when live activity is on and a visible session exists. Its wing uses the chosen readout.
+
+### Phase 5 — done
+
+Approvals, the queue, hold-for-reply, new chat, jump, and the context note are in place. `decide` may return nil, and that holds an approval or a `stop` hook.
+
+- Rules run before any card. Deny beats allow. The longest token prefix wins. A risky command still waits. Always allow shows the tokens, then saves the rule. The cap is 50.
+- If the island cannot be shown, shell and MCP defer with `ask` and edits defer with empty stdout. A busy page gets a needs-you notice and the approval waits. A and D answer the focused card. Escape on an approval leaves the page and does not decide. Escape on a held reply skips it.
+- A queued follow-up is sent and cleared before hold-for-reply. `loop_count` above 0 and status `error` send nothing. Aborted turns send only when that setting is on.
+- The context note is a file beside the installed helper. `sessionStart` does not wait, so the helper prints `additional_context` itself. An empty note prints nothing. The reply never includes `env`.
+- New chat opens the folder, waits up to three seconds for Cursor to come forward, then opens the prompt link. The counter uses `21 + encodeURIComponent(text).length` against 10,000. Recent repos stay in unregistered `notchCursorRecentRepos`, capped at 20. Remote sessions are not added.
+- Cursor is found by the stable bundle id only. No Nightly id was recorded. Controls that need the app stay hidden when it is missing.
+
+### Phase 6 — done
+
+Git status, create, checks, and merge run through argument arrays in the workspace folder. A remote session never runs them.
+
+- `gh` is found the same way as the Codex helper: `~/.local/bin`, Homebrew, `/usr/local/bin`, then the login shell PATH.
+- Refresh runs when a turn ends, when the page opens, from the refresh button, and every 60 seconds while checks are pending and the page is visible.
+- Create is off on the default branch, a detached HEAD, a non-repo, and a remote session. A dirty tree offers to queue a commit message. The confirm step shows `git push -u <remote> HEAD` and `gh pr create`. Merge confirms the number, title, base, head, and method.
+- `--force`, `--force-with-lease`, `--admin`, and `--auto` are refused. A pull request URL opens only when it is https on its own host.
+
+### Phase 7 — done
+
+Experimental controls are off. Turning them on asks for Accessibility, and that is the only time the feature lists the permission.
+
+- There are no default chords. Phase 0 did not find them. Each action has a recorder and a Test button. Undo all asks before it runs.
+- Every action checks trust, then whether Cursor is in front, then the window title. S0.17 left the title format empty, so the action aborts before any key is posted and before Accessibility is asked for a title. A verified format counts windows whose titles contain it, and it also requires the focused window to match. More than one match aborts.
+- Test reports the block and does not type. Send now pastes the composer draft, or a queued follow-up when the field is empty.
+
+### Phase 8 — done
+
+The mascot is drawn with layers. Eyes follow the pointer only while the page is visible and that setting is on. Reduce Motion and a hidden or occluded window stop the layer animations.
+
+- State colors have a high-contrast variant, including the closed strip and the capsule. Clocks and the approval countdown use numeric transitions. The state word pushes in and blurs. A running step shimmers only while that step is on screen.
+- The approval countdown is a ring sized from the timeout stored with that card. Done hops and the ring bursts once. Failure shakes. Waiting pulses. Idle blinks. Thinking dots orbit. The connect card waves.
+- Glow is off unless chosen. It is drawn on the closed strip and the capsule, and it stays off in Low Power Mode and Reduce Motion.
+- Sounds are macOS system sounds, off by default: Tink when an approval is waiting, Glass when a turn finishes, Basso when it fails. A stop stays quiet. Allow and Deny, including A and D, use the island haptic when that setting is on.
+- The typewriter reveals a reply once, at about 90 characters a second, capped at 2.5 seconds and the first 600 characters, with a blinking caret. A click finishes it. The timeline pauses while the page is hidden. Reduce Motion fades it in. Thinking uses the same effect, dimmed.
+
+### Phase 9 — done
+
+The cursor suite covers the phase 9 list: decoding, the reducer, installer merge and uninstall, protocol caps, the timeout policy, rule matching, the stdout allowlist, peer rejection, an oversize payload, symlink and version refusal, `generation_id`, the remote flag, the prompt-link length, git and `gh` parsing, pull request buttons, and the closed-island order with Cursor left out. Localization is the existing suite plus a read of the long German and Russian strings. Docs are in the README, privacy, permissions and troubleshooting. `CHANGELOG.md` is untouched.
+
+Section 8 was not run against a live Cursor. A build and the cursor tests do not show the island, a hooks file on this Mac, approvals, pull requests, experimental keys, displays, VoiceOver, or energy while idle. Those boxes stay open. The experimental toggle stays off.
